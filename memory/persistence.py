@@ -1,3 +1,69 @@
+"""
+Module: memory/persistence.py
+
+Purpose:
+Provides file-based session management and persistence for memory systems,
+allowing memory states to be saved, restored, listed, or deleted.
+
+Class: MemoryPersistence
+
+Constructor:
+- MemoryPersistence(base_path="data/sessions/")
+    - Sets up the storage directory and initializes the session index
+
+Key Features:
+
+=== Session Management ===
+- create_session(session_name=None, metadata=None) -> str
+    - Creates a new session with a unique ID, directories, and metadata
+    - Returns the session ID
+
+- delete_session(session_id) -> bool
+    - Removes all session data and updates the index
+
+- list_sessions() -> List[Dict]
+    - Returns all sessions with metadata
+
+- get_session_info(session_id) -> Optional[Dict]
+    - Fetches metadata for a single session
+
+=== Persistence Operations ===
+- save_session_state(session_id, memory_manager) -> bool
+    - Saves:
+        - Short-Term Memory messages
+        - Working Memory data and expiry times
+    - Assumes Long-Term Memory (ChromaDB) is already persistent
+
+- load_session_state(session_id, memory_manager) -> bool
+    - Restores memory from disk into the given `memory_manager`
+    - Parses ISO date strings into `datetime` for working memory
+    - Triggers WM cleanup after load
+
+=== Internal Helpers ===
+- _initialize_sessions_index()
+    - Creates an empty session index if not present
+
+- _load_sessions_index() / _save_sessions_index()
+    - Loads/saves the `sessions_index.json` tracking all sessions
+
+- _update_session_access_time(session_id)
+    - Updates the `last_accessed` timestamp for session tracking
+
+Storage Structure:
+data/
+    └── sessions/
+        ├── sessions_index.json
+        └── session_YYYYMMDD_HHMMSS/
+            ├── short_term/messages.json
+            ├── working/data.json
+            └── long_term/ (placeholder - managed externally)
+
+Integration Notes:
+- Works seamlessly with `MemoryManager.save_all()` and `load_all()`
+- Modular session design makes it easy to switch between different sessions
+- Robust to missing or corrupted index files (auto-recovers)
+"""
+
 import os
 import json
 import shutil
@@ -204,8 +270,8 @@ class MemoryPersistence:
         try:
             with open(self.sessions_index_path, 'r') as f:
                 return json.load(f)
-        except:
-            # If there's an error, reinitialize the index
+        except Exception as e:
+            print(f"Error loading session index: {str(e)}")
             self._initialize_sessions_index()
             with open(self.sessions_index_path, 'r') as f:
                 return json.load(f)

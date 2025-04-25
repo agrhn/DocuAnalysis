@@ -1,3 +1,47 @@
+"""
+Module: memory/long_term_memory.py
+
+Purpose:
+Implements the LongTermMemory class, providing persistent document memory using ChromaDB for embedding storage
+and retrieval, along with structured fact storage in JSON format. This is a core part of the long-term memory
+system in the Document Analysis Assistant project.
+
+Key Responsibilities:
+- Stores document embeddings in a persistent vector database (ChromaDB)
+- Supports semantic search over stored documents using OpenAI embeddings
+- Stores and retrieves structured facts extracted from documents as JSON files
+
+Class: LongTermMemory
+
+Constructor:
+- LongTermMemory(collection_name: str = "document_memory", embeddings_model: str = "text-embedding-3-small")
+    - Initializes ChromaDB collection and OpenAI embeddings
+    - Sets up paths for persistent storage
+
+Key Methods:
+- add_documents(documents: List[Document]) -> None
+    - Embeds and stores documents in the vector database
+    - `Document` must have `page_content` and optional `metadata`
+
+- search(query: str, n_results: int = 5) -> List[Dict[str, Any]]
+    - Performs semantic search using embedded query
+    - Returns list of dicts with `content`, `metadata`, and `id`
+
+- store_fact(fact_id: str, content: Dict[str, Any]) -> None
+    - Saves structured fact to disk using a unique identifier
+
+- retrieve_fact(fact_id: str) -> Optional[Dict[str, Any]]
+    - Loads previously stored fact if it exists
+
+- clear() -> None
+    - Clears and reinitializes the vector store for fresh indexing
+
+Integration Notes:
+- Used by Extraction Agent and Coordinator Agent for storing and retrieving facts and embeddings
+- Document embeddings can be searched by any agent needing context or related content
+- Fact storage enables structured output reuse and persistence between sessions
+"""
+
 import os
 from typing import List, Dict, Any, Optional
 import chromadb
@@ -29,7 +73,7 @@ class LongTermMemory:
         # Create or get collection
         try:
             self.collection = self.client.get_collection(collection_name)
-        except:
+        except chromadb.errors.NotFoundError:
             self.collection = self.client.create_collection(
                 name=collection_name,
                 metadata={"hnsw:space": "cosine"}
@@ -62,10 +106,22 @@ class LongTermMemory:
                 documents=[doc.page_content]
             )
 
-    def search(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
+    def set_collection(self, collection_name: str) -> None:
         """
-        Search for relevant documents based on query
+        Dynamically set the target collection for semantic search.
         """
+        try:
+            self.collection = self.client.get_collection(collection_name)
+        except chromadb.errors.NotFoundError:
+            raise ValueError(f"Collection '{collection_name}' does not exist.")
+
+    def search(self, query: str, n_results: int = 5, collection_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Search for relevant documents based on query within a specific collection.
+        """
+        if collection_name:
+            self.set_collection(collection_name)  # Dynamically switch collections
+
         # Get embedding for query
         query_embedding = self.embeddings.embed_query(query)
 
@@ -101,7 +157,7 @@ class LongTermMemory:
         try:
             with open(f"{self.facts_path}{fact_id}.json", 'r') as f:
                 return json.load(f)
-        except:
+        except (FileNotFoundError, json.JSONDecodeError):
             return None
 
     def clear(self) -> None:

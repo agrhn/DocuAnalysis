@@ -1,3 +1,69 @@
+"""
+Module: memory/session_manager.py
+
+Purpose:
+Provides a high-level interface to manage user sessions, delegating memory
+state persistence and restoration to the underlying `MemoryPersistence` and
+`MemoryManager` classes.
+
+Class: SessionManager
+
+Constructor:
+- SessionManager(memory_manager=None, base_path="data/sessions/")
+    - Initializes with an optional `MemoryManager`
+    - Uses `MemoryPersistence` for file-based session I/O
+    - Tracks the current session ID and its metadata
+
+Key Features:
+
+=== Session Lifecycle ===
+- start_new_session(session_name=None, metadata=None) -> str
+    - Ends and saves current session if one exists
+    - Clears short-term and working memory (long-term is persistent)
+    - Starts a new session and stores a `session_start` system message
+    - Returns the new session ID
+
+- load_session(session_id) -> bool
+    - Saves the current session (if active)
+    - Loads specified session into memory
+    - Stores a `session_resume` system message
+    - Updates `current_session_id` and metadata
+
+- end_current_session() -> bool
+    - Saves current session and clears state
+    - Logs a `session_end` system message
+
+=== Persistence ===
+- save_current_session() -> bool
+    - Triggers memory persistence for current session
+
+=== Session Info ===
+- list_available_sessions() -> List[Dict]
+    - Returns all sessions with metadata from index
+
+- get_session_info(session_id=None) -> Optional[Dict]
+    - Returns metadata for a session (defaults to current)
+
+- get_current_session_id() -> Optional[str]
+    - Returns the active session ID
+
+- delete_session(session_id) -> bool
+    - Deletes the given session
+    - Cannot delete currently active session
+
+Session Flow Summary:
+User action ─┐
+             ↓ [Start new session] ────────> Clears STM + WM, Creates new session dir, Logs session_start
+               [Load session] ─────────────> Saves current (if any), Loads saved STM + WM, Logs session_resume
+               [End session] ──────────────> Logs session_end, Saves session, Clears session tracking
+               [Delete session] ───────────> Permanently removes session folder (if not active)
+
+Integration Notes:
+- Seamlessly coordinates with `MemoryPersistence` and `MemoryManager`
+- Ensures consistent transitions between sessions
+- Metadata tracking allows for enhanced user personalization or auditing
+"""
+
 from typing import Dict, Any, Optional, List
 from .persistence import MemoryPersistence
 from .memory_manager import MemoryManager

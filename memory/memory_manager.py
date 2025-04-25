@@ -1,3 +1,75 @@
+"""
+Module: memory/memory_manager.py
+
+Purpose:
+Acts as the central orchestrator for memory-related operations across different memory types:
+- Short-Term Memory (STM): recent message history
+- Long-Term Memory (LTM): structured facts and searchable documents
+- Working Memory (WM): volatile, collaborative memory with expiration
+
+Provides unified interfaces for storing, retrieving, building context, and pruning memory.
+
+Class: MemoryManager
+
+Constructor:
+- MemoryManager(short_term_memory, long_term_memory, working_memory, max_tokens)
+    - Initializes memory subsystems and token counter
+
+Key Features:
+
+=== Store Methods ===
+- store_message(agent_id, content, metadata)
+    - Adds a message to STM
+
+- store_document(document)
+    - Stores one or more `Document` objects into LTM
+
+- store_fact(fact_id, content)
+    - Persists structured facts in LTM
+
+- store_working_data(key, value)
+    - Caches transient shared data into WM
+
+=== Retrieve Methods ===
+- get_recent_messages(n=10, agent_id=None)
+    - Retrieves recent messages (optionally filtered by agent)
+
+- search_documents(query, n_results=5)
+    - Returns LTM documents similar to query
+
+- get_fact(fact_id)
+    - Retrieves a specific fact from LTM
+
+- get_working_data(key), get_all_working_data()
+    - Retrieves working memory entries
+
+=== Context Builder ===
+- build_agent_context(agent_id, query=None, max_context_tokens=2000)
+    - Creates a composite memory snapshot for an agent
+    - Combines STM, relevant LTM docs, and WM (based on token budget)
+
+=== Pruning & Utilities ===
+- prune_short_term_memory(keep_last_n=20)
+    - Trims STM to recent messages only
+
+- truncate_text(text, max_tokens)
+    - Crops a text string to a specific token count
+
+- count_tokens(text)
+    - Counts GPT-4 tokens using `tiktoken`
+
+- save_all(session_id), load_all(session_id)
+    - Serializes STM & WM to disk (LTM assumed persistent)
+
+- _log_operation(type, target, id, size)
+    - Internal tracker for operations via JSONL logs
+
+Integration Notes:
+- This is the interface agents use to access all memory types
+- Designed for modular replacement or expansion of memory systems
+- Key in managing memory-token budget for context-aware AI agents
+"""
+
 from typing import Dict, Any, List, Optional, Union
 import tiktoken
 from datetime import datetime
@@ -85,7 +157,7 @@ class MemoryManager:
         self.wm.set(key, value)
         try:
             token_count = self.count_tokens(str(value))
-        except:
+        except ValueError:
             token_count = 0
 
         self._log_operation("store", "working_data", key, token_count)
@@ -106,11 +178,11 @@ class MemoryManager:
         self._log_operation("retrieve", "messages", agent_id or "all", len(messages))
         return messages
 
-    def search_documents(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
+    def search_documents(self, query: str, collection: str = None, n_results: int = 5) -> List[Dict[str, Any]]:
         """
-        Search for relevant documents based on semantic similarity
+        Search for relevant documents based on semantic similarity within a specified collection.
         """
-        results = self.ltm.search(query, n_results)
+        results = self.ltm.search(query, n_results=n_results, collection_name=collection)
         self._log_operation("retrieve", "documents", query[:20], len(results))
         return results
 
@@ -132,6 +204,18 @@ class MemoryManager:
                             1 if data is not None else 0)
         return data
 
+    def get_working_data_by_partial_key(self, partial_key: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve working memory entries where the key contains the given partial key.
+        """
+        all_working_data = self.get_all_working_data()
+
+        for key, value in all_working_data.items():
+            if partial_key in key:
+                return {"key": key, "value": value}
+
+        return None
+
     def get_all_working_data(self) -> Dict[str, Any]:
         """
         Get all available working memory data
@@ -139,6 +223,22 @@ class MemoryManager:
         all_data = self.wm.get_all()
         self._log_operation("retrieve", "all_working_data", "", len(all_data))
         return all_data
+
+    def retrieve_document_segment(self, segment_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a document segment from Working Memory using a specific segment ID.
+        """
+        all_working_data = self.get_all_working_data()
+
+        # Loop through all working memory to find the segment
+        for key, value in all_working_data.items():
+            if isinstance(value, dict) and "document_segments" in value:
+                # Search the "document_segments" list within this working memory entry
+                for segment in value["document_segments"]:
+                    if segment.get("segment_id") == segment_id:
+                        return segment
+
+        return None  # Return None if the segment is not found
 
     # ======== CONTEXT BUILDING METHODS ========
 
@@ -220,7 +320,7 @@ class MemoryManager:
                         token_budget -= entry_tokens
                     else:
                         working_context += f"{key}: [Content too large]\n"
-                except:
+                except (TypeError, ValueError):
                     working_context += f"{key}: [Unserializable content]\n"
 
             context_parts.append(working_context)

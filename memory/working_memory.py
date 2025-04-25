@@ -1,3 +1,48 @@
+"""
+Module: working_memory.py
+
+Purpose:
+Implements the WorkingMemory class for short-lived, collaborative data storage among agents.
+Acts as a shared temporary workspace to coordinate intermediate results, tasks, or focus areas.
+
+Key Responsibilities:
+- Provides volatile memory with optional expiration for collaborative agent tasks
+- Supports session persistence to disk
+- Automatically removes expired items to keep working set relevant
+
+Class: WorkingMemory
+
+Constructor:
+- WorkingMemory(expiry_minutes: int = 30)
+    - Initializes temporary memory store with expiration timing
+    - Sets up storage path for persistence
+
+Key Methods:
+- set(key: str, value: Any) -> None
+    - Stores a value with a specific key and sets its expiration time
+
+- get(key: str) -> Optional[Any]
+    - Retrieves a value if it exists and hasn't expired
+
+- get_all() -> Dict[str, Any]
+    - Returns all non-expired key-value pairs currently in memory
+
+- clear() -> None
+    - Clears all working memory data and expiry tracking
+
+- save(session_id: str) -> None
+    - Saves current memory state and expiry info to disk for a given session
+
+- load(session_id: str) -> bool
+    - Loads saved memory and expiry info for a session
+    - Returns `True` if successful, `False` otherwise
+
+Integration Notes:
+- Acts as a live scratchpad for agents to pass intermediate results
+- Useful for coordinated agent workflows (e.g., Extraction → Analysis → Summary)
+- Coordinator Agent may use this for task handoff or attention control
+"""
+
 from typing import Dict, Any, Optional
 import json
 import os
@@ -98,7 +143,7 @@ class WorkingMemory:
                 self.data = saved_data["data"]
                 # Convert string dates back to datetime
                 self.expiry_times = {
-                    k: datetime.fromisoformat(v) 
+                    k: datetime.fromisoformat(v)
                     for k, v in saved_data["expiry_times"].items()
                 }
 

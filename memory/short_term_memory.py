@@ -1,3 +1,47 @@
+"""
+Module: memory/short_term_memory.py
+
+Purpose:
+Implements the ShortTermMemory class to handle recent agent interactions and maintain contextual awareness
+during a session. Acts as a rolling log of recent messages for coordination and conversation tracking.
+
+Key Responsibilities:
+- Temporarily stores recent messages exchanged between agents or with the user
+- Maintains a rolling window of message history (default: 50 messages)
+- Supports save/load to disk for session persistence
+
+Class: ShortTermMemory
+
+Constructor:
+- ShortTermMemory(max_messages: int = 50)
+    - Initializes memory with a maximum number of retained messages
+    - Sets up disk storage path
+
+Key Methods:
+- add_message(message: Dict[str, Any]) -> None
+    - Adds a message to memory
+    - Automatically timestamps messages if not provided
+    - Maintains size limit by removing oldest messages
+
+- get_recent_messages(n: int = None) -> List[Dict[str, Any]]
+    - Returns the last `n` messages or all messages if `n` is None
+
+- clear() -> None
+    - Empties the short-term memory
+
+- save(session_id: str) -> None
+    - Saves current message history to a JSON file associated with a session
+
+- load(session_id: str) -> bool
+    - Loads a previously saved message history for a given session
+    - Returns `True` if successful, `False` otherwise
+
+Integration Notes:
+- Used by the Coordinator Agent to maintain context of recent interactions
+- Can be queried by any agent to review conversation flow or shared information
+- Complements WorkingMemory by tracking chronological conversational state
+"""
+
 from typing import List, Dict, Any
 import json
 import os
