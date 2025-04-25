@@ -1,3 +1,57 @@
+"""
+Module: agents/base_agent.py
+
+Purpose:
+Defines the `BaseAgent` class, which represents a foundational framework for specialized agents.
+This class provides core functionalities such as communication, reasoning, action decision-making,
+and memory integration necessary for collaborative tasks among agents.
+
+Key Responsibilities:
+1. Memory Integration:
+   - Access Short-, Long-, and Working memory via `MemoryManager`.
+   - Store, retrieve, and build context from memory during workflows.
+
+2. Communication:
+   - Send and receive messages with other agents via memory.
+   - Supports direct, broadcast, or internal communication modes.
+
+3. Thinking Process:
+   - Implements a structured, four-step "thinking process":
+     1. **Perception**: Process input data and relevant memory context.
+     2. **Reasoning**: Use the LLM to analyze and derive insights.
+     3. **Action Decision**: Select the next action based on reasoning.
+     4. **Action Execution**: Perform the chosen action (e.g., communicating or saving data).
+   - Each step is modular and logs intermediary results for traceability.
+
+4. Action Set:
+   - Includes built-in actions for communication, fact storage, and data retrieval.
+   - Supports extensible custom actions via `available_actions` parameter.
+
+5. Logging:
+   - Logs all major actions (e.g., communication, reasoning, decisions) for debugging and monitoring.
+   - Stores logs in JSONL format within a designated directory.
+
+Constructor Parameters:
+- `agent_id`, `name`, `role`: Define unique identification and specialization for the agent.
+- `memory_manager`: Instance of `MemoryManager` for memory interaction.
+- `model`, `temperature`, `max_tokens`: Configuration for the underlying OpenAI LLM.
+
+Core Methods:
+1. Communication Methods:
+   - `send_message`, `get_messages`, `broadcast_message`
+2. Thinking Process:
+   - `perceive`, `reason`, `decide_action`, `execute_action`, `think`
+3. Default Actions:
+   - `_action_communicate`, `_action_store_fact`, `_action_retrieve_info`, `_action_no_action`, `_action_error`
+4. Utility:
+   - `_log_action`: Logs agent operations for monitoring.
+   - `set_additional_instructions`: Customizes the system prompt for agent roles.
+
+Integration Notes:
+- Specialized agents should inherit from `BaseAgent` and extend its functionality as needed.
+- Modular design enables scalability and role extensibility.
+"""
+
 from typing import Dict, Any, List, Union, Callable
 import json
 import uuid
@@ -83,23 +137,17 @@ class BaseAgent:
 
         message = {
             "message_id": message_id,
-            "sender_id": self.agent_id,
+            "agent_id": self.agent_id,
             "recipient_id": recipient_id,
             "content": content,
             "timestamp": datetime.now().isoformat(),
             "metadata": metadata or {}
         }
 
-        # Store in memory
-        self.memory.store_message(self.agent_id, content, {
-            "message_id": message_id,
-            "recipient_id": recipient_id,
-            "is_communication": True,
-            **(metadata or {})
-        })
+        # Store the complete message in memory
+        self.memory.store_message(self.agent_id, content, message)
 
         self._log_action("communication", "send_message", recipient_id, content[:50])
-
         return message_id
 
     def get_messages(self, n: int = 5, from_agent: str = None) -> List[Dict[str, Any]]:
@@ -122,23 +170,17 @@ class BaseAgent:
 
         message = {
             "message_id": message_id,
-            "sender_id": self.agent_id,
+            "agent_id": self.agent_id,
             "recipient_id": "all",
             "content": content,
             "timestamp": datetime.now().isoformat(),
             "metadata": metadata or {}
         }
 
-        # Store in memory
-        self.memory.store_message(self.agent_id, content, {
-            "message_id": message_id,
-            "recipient_id": "all",
-            "is_broadcast": True,
-            **(metadata or {})
-        })
+        # Store the complete message in memory
+        self.memory.store_message(self.agent_id, content, message)
 
         self._log_action("communication", "broadcast", "all", content[:50])
-
         return message_id
 
     # ======== THINKING PROCESS METHODS ========
