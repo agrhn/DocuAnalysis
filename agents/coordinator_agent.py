@@ -151,7 +151,6 @@ class CoordinatorAgent(BaseAgent):
         self.memory.store_working_data(f"workflow_{workflow_id}", self.workflow_state)
 
         self._log_action("workflow", "initialize", document_id, f"Started workflow: {workflow_id}")
-        return self.workflow_state
 
     def segment_document(self, document_content: str, segment_size: int = 2000) -> List[Dict[str, Any]]:
         """
@@ -227,10 +226,14 @@ class CoordinatorAgent(BaseAgent):
             "parameters": parameters or {}
         }
 
-        self.send_message(agent_id, json.dumps(task_message), {
-            "message_type": "task_assignment",
-            "task_id": task_id
-        })
+        self.send_message(
+            agent_id,
+            json.dumps(task_message),
+            {
+                "message_type": "task_assignment",
+                "task_id": task_id
+            }
+        )
 
         self._log_action("workflow", "assign_task", agent_id,
                          f"Task {task_id} ({task_type}) assigned to {agent_id}")

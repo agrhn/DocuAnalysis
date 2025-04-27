@@ -1,24 +1,26 @@
 import PyPDF2
-from langchain_core.documents import Document
 import os
-from typing import List
+from typing import Tuple
 
 
-def load_pdf(file_path: str) -> List[Document]:
+def load_pdf(file_path: str) -> Tuple[str, dict]:
     """
-    Load a PDF file and convert it to a list of Document objects.
-    Each page becomes a separate Document with metadata.
+    Load a PDF file, extract the text, and combine it into a single string.
+    Returns the combined text and metadata about the document.
 
     Args:
         file_path (str): Path to the PDF file
 
     Returns:
-        List[Document]: List of Document objects
+        Tuple[str, dict]: A tuple containing:
+            - A single string with all the text from the PDF
+            - Metadata about the document
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"PDF file not found at {file_path}")
 
-    documents: List[Document] = []
+    combined_text = ""
+    metadata = {}
 
     try:
         with open(file_path, 'rb') as file:
@@ -32,22 +34,20 @@ def load_pdf(file_path: str) -> List[Document]:
             # Process each page
             for i in range(num_pages):
                 page = pdf_reader.pages[i]
-                text = page.extract_text()
+                page_text = page.extract_text()
 
-                # Create a Document object with metadata
-                doc = Document(
-                    page_content=text,
-                    metadata={
-                        "source": file_path,
-                        "filename": file_name,
-                        "page": i + 1,
-                        "total_pages": num_pages,
-                        "title": file_name_no_ext
-                    }
-                )
-                documents.append(doc)
+                # Combine all page text into a single string
+                combined_text += page_text + "\n"
+
+            # Populate metadata
+            metadata = {
+                "source": file_path,
+                "filename": file_name,
+                "total_pages": num_pages,
+                "title": file_name_no_ext
+            }
 
     except Exception as e:
         raise Exception(f"Error processing PDF file: {str(e)}")
 
-    return documents
+    return combined_text.strip(), metadata

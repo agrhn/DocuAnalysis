@@ -398,20 +398,9 @@ class SummarizationAgent(BaseAgent):
         segment_id = task.get("segment_id")
         parameters = task.get("parameters", {})
 
-        # Retrieve the document segment if segment_id is provided
-        segment_content = ""
-        workflow_key = f"workflow_{task.get('workflow_id', '')}"  # Ensure we're targeting a specific workflow
-        workflow = self.memory.get_working_data(workflow_key)
-
-        if workflow and segment_id:
-            for segment in workflow.get("document_segments", []):
-                if segment.get("segment_id") == segment_id:
-                    segment_content = segment.get("content", "")
-                    break
-            if not segment_content:
-                segment_content = parameters.get("text", "")  # Use provided text if segment not found
-        else:
-            segment_content = parameters.get("text", "")  # Use provided text if no workflow/segment is found
+        # Retrieve the document segment content
+        segment_data = self.memory.retrieve_document_segment(segment_id) if segment_id else None
+        text_content = segment_data.get("content") if segment_data else parameters.get("text", "")
 
         # Process based on task type
         supported_task_types = {"create_summary", "create_progressive_summary", "merge_summaries"}
@@ -422,14 +411,14 @@ class SummarizationAgent(BaseAgent):
             }
         elif task_type == "create_summary":
             result = self._action_create_summary(
-                segment_content,
+                text_content,
                 style=parameters.get("style", "comprehensive"),
                 max_length=parameters.get("max_length"),
                 focus_topics=parameters.get("focus_topics")
             )
         elif task_type == "create_progressive_summary":
             result = self._action_create_progressive_summary(
-                segment_content,
+                text_content,
                 levels=parameters.get("levels")
             )
         elif task_type == "merge_summaries":
