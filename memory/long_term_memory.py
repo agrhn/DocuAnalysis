@@ -47,7 +47,7 @@ from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
 from langchain_core.documents import Document
-from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 import hashlib
 import json
 from dotenv import load_dotenv

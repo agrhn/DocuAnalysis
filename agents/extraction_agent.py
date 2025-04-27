@@ -147,7 +147,7 @@ class ExtractionAgent(BaseAgent):
         """
         Extract key facts from text using LLM-based reasoning
         """
-        extraction_prompt = """
+        extraction_prompt = f"""
         Extract key facts from the following text. For each fact:
         1. State the fact clearly and concisely
         2. Categorize the fact type
@@ -177,12 +177,10 @@ class ExtractionAgent(BaseAgent):
             "context": context or {}
         }
 
-        reasoning_prompt = extraction_prompt.format(text=text)
-
         thinking_result = self.think(
             thinking_input,
             context_query="fact extraction",
-            reasoning_prompt=reasoning_prompt,
+            reasoning_prompt=extraction_prompt,
             action_options=["store_fact", "communicate"],
         )
 
@@ -224,7 +222,7 @@ class ExtractionAgent(BaseAgent):
         """
         Extract document metadata based on document type
         """
-        metadata_prompt = """
+        metadata_prompt = f"""
         Extract metadata from this {doc_type} document. Include:
 
         - Title or heading
@@ -386,28 +384,17 @@ class ExtractionAgent(BaseAgent):
         segment_id = task.get("segment_id")
         parameters = task.get("parameters", {})
 
-        # Retrieve the document segment if segment_id is provided
-        segment_content = ""
-        workflow_key = f"workflow_{task.get('workflow_id', '')}"  # Ensure we're targeting a specific workflow
-        workflow = self.memory.get_working_data(workflow_key)
-
-        if workflow and segment_id:
-            for segment in workflow.get("document_segments", []):
-                if segment.get("segment_id") == segment_id:
-                    segment_content = segment.get("content", "")
-                    break
-            if not segment_content:
-                segment_content = parameters.get("text", "")  # Use provided text if segment not found
-        else:
-            segment_content = parameters.get("text", "")  # Use provided text if no workflow/segment is found
+        # Retrieve the document segment content
+        segment_data = self.memory.retrieve_document_segment(segment_id) if segment_id else None
+        text_content = segment_data.get("content") if segment_data else parameters.get("text", "")
 
         # Process based on task type
         if task_type == "extract_entities":
-            result = self._action_extract_entities(segment_content)
+            result = self._action_extract_entities(text_content)
         elif task_type == "extract_facts":
-            result = self._action_extract_facts(segment_content, parameters.get("context"))
+            result = self._action_extract_facts(text_content, parameters.get("context"))
         elif task_type == "extract_metadata":
-            result = self._action_extract_metadata(segment_content, parameters.get("doc_type"))
+            result = self._action_extract_metadata(text_content, parameters.get("doc_type"))
         else:
             result = {
                 "success": False,

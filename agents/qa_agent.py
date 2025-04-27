@@ -370,7 +370,7 @@ class QAAgent(BaseAgent):
 
             for result in search_results:
                 analysis_id = result.get("id")
-                analysis_data = self.memory.retrieve_working_data(analysis_id)
+                analysis_data = self.memory.get_working_data(analysis_id)
                 if analysis_data:
                     relevant_analyses.append(analysis_data)
 
